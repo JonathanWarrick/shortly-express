@@ -4,7 +4,6 @@ var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var session = require('express-session');
 
-
 var db = require('./app/config');
 var Users = require('./app/collections/users');
 var User = require('./app/models/user');
@@ -25,17 +24,22 @@ app.use(bodyParser.json());
 // app.use(express.cookieParser('shhhh, very secret'));
 app.use(session({
   secret: 'tyron',
-  cookie: { maxAge: 10000 }
+  cookie: { maxAge: 5000 },
+  resave: false,
+  saveUninitialized: true
 }));
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
-
 // ROUTERS
 app.get('/',
 function(req, res) {
-  res.render('index');
+  if( !req.session.currentUser ) {
+    res.redirect('/login');
+  } else {
+    res.render('index');
+  }
 });
 
 app.get('/create',
@@ -82,7 +86,8 @@ function(req, res) {
         var link = new Link({
           url: uri,
           title: title,
-          base_url: req.headers.origin
+          base_url: req.headers.origin,
+          user_id: req.session.currentUser['id']
         });
 
         link.save().then(function(newLink) {
@@ -104,8 +109,7 @@ app.post('/signup', function(request, response) {
     password: request.body.password
   }).save().then(function(newUser) {
     Users.add(newUser);
-    console.log(newUser);
-    response.send(200, newUser);
+    response.redirect('login');
   });
 });
 
@@ -115,18 +119,16 @@ app.post('/login', function(request, response) {
     password: request.body.password
   }).fetch().then(function(found) {
     if (found) {
-        request.session.regenerate(function(){
-        request.session.user = found.attributes.username;
-        console.log(request.session);
-        response.redirect('/restricted');
-        });
+      request.session.save(function(){
+        request.session.currentUser = found.attributes;
+        response.redirect('/index');
+      });
       // response.send(200, found.attributes);
     } else {
-      response.redirect('login');
+      response.redirect('/login');
     }
   });
 });
-
 
 function restrict(req, res, next) {
   if (req.session.user) {
@@ -137,19 +139,16 @@ function restrict(req, res, next) {
   }
 }
 
-
-
 app.get('/logout', function(request, response){
     request.session.destroy(function(){
-        response.redirect('/');
+      console.log('session ended');
+      response.redirect('/');
     });
 });
 
 app.get('/restricted', restrict, function(request, response){
   response.send('This is the restricted area! Hello ' + request.session.user + '! click <a href="/logout">here to logout</a>');
 });
-
-
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail

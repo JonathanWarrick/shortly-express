@@ -11,6 +11,10 @@ var User = db.Model.extend({
   tableName: 'users',
   hasTimestamps: true,
 
+  links: function() {
+    return this.hasMany(Link);
+  },
+
   initialize: function(){
     // function(model, attrs, options){
       var shasum = crypto.createHash('sha1');
