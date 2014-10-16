@@ -3,6 +3,7 @@ var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var session = require('express-session');
+var passport = require('passport');`
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -24,10 +25,12 @@ app.use(bodyParser.json());
 // app.use(express.cookieParser('shhhh, very secret'));
 app.use(session({
   secret: 'tyron',
-  cookie: { maxAge: 5000 },
-  resave: false,
+  cookie: { maxAge: 60000 },
   saveUninitialized: true
 }));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
@@ -49,8 +52,12 @@ function(req, res) {
 
 app.get('/links',
 function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
+  Links.reset()
+       .query('where', 'user_id', '=', req.session.currentUser['id'])
+       .fetch()
+       .then(function(links) {
+        console.log(links.models);
+        res.send(200, links.models);
   });
 });
 
@@ -119,7 +126,7 @@ app.post('/login', function(request, response) {
     password: request.body.password
   }).fetch().then(function(found) {
     if (found) {
-      request.session.save(function(){
+      request.session.regenerate(function(){
         request.session.currentUser = found.attributes;
         response.redirect('/index');
       });
